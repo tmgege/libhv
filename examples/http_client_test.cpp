@@ -10,7 +10,7 @@ static void test_http_async_client(int* finished) {
     req->headers["Connection"] = "keep-alive";
     req->body = "this is an async request.";
     req->timeout = 10;
-    http_client_send_async(req, [finished](const HttpResponsePtr& resp) {
+    http_client_send_async(req, [finished](const HttpResponsePtr& resp, int err) {
         printf("test_http_async_client response thread tid=%ld\n", hv_gettid());
         if (resp == NULL) {
             printf("request failed!\n");

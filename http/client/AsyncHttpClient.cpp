@@ -13,7 +13,7 @@ int AsyncHttpClient::doTask(const HttpClientTaskPtr& task) {
     int timeout_ms = req->timeout * 1000;
     if (timeout_ms > 0 && elapsed_ms >= timeout_ms) {
         hlogw("%s queueInLoop timeout!", req->url.c_str());
-        return -10;
+        return ERR_TASK_TIMEOUT;
     }
 
     req->ParseUrl();
@@ -22,7 +22,7 @@ int AsyncHttpClient::doTask(const HttpClientTaskPtr& task) {
     int ret = sockaddr_set_ipport(&peeraddr, req->host.c_str(), req->port);
     if (ret != 0) {
         hloge("unknown host %s", req->host.c_str());
-        return -20;
+        return ERR_BIND;
     }
 
     int connfd = -1;
@@ -40,7 +40,7 @@ int AsyncHttpClient::doTask(const HttpClientTaskPtr& task) {
         connfd = socket(peeraddr.sa.sa_family, SOCK_STREAM, 0);
         if (connfd < 0) {
             perror("socket");
-            return -30;
+            return ERR_SOCKET;
         }
         hio_t* connio = hio_get(loop_thread.hloop(), connfd);
         assert(connio != NULL);

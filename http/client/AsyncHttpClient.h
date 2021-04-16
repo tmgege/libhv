@@ -8,6 +8,7 @@
 
 #include "HttpMessage.h"
 #include "HttpParser.h"
+#include "herr.h"
 
 // async => keepalive => connect_pool
 
@@ -75,7 +76,7 @@ struct HttpClientContext {
             timerID = INVALID_TIMER_ID;
         }
         if (task && task->cb) {
-            task->cb(resp);
+            task->cb(resp, ERR_OK);
         }
         // NOTE: task done
         task = NULL;
@@ -120,7 +121,7 @@ protected:
     void sendInLoop(HttpClientTaskPtr task) {
         int err = doTask(task);
         if (err != 0 && task->cb) {
-            task->cb(NULL);
+            task->cb(NULL, err);
         }
     }
     int doTask(const HttpClientTaskPtr& task);

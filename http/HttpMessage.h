@@ -348,6 +348,6 @@ public:
 
 typedef std::shared_ptr<HttpRequest>    HttpRequestPtr;
 typedef std::shared_ptr<HttpResponse>   HttpResponsePtr;
-typedef std::function<void(const HttpResponsePtr&)> HttpResponseCallback;
+typedef std::function<void(const HttpResponsePtr&, int)> HttpResponseCallback;
 
 #endif // HTTP_MESSAGE_H_

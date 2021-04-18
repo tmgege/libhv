@@ -57,7 +57,7 @@ int main() {
     return 0;
 }
 */
-HV_EXPORT int http_server_run(http_server_t* server, int wait = 1);
+HV_EXPORT int http_server_run(http_server_t* server, int isMainThreadEnabled = 1, int isLoop = 1);
 
 HV_EXPORT void http_server_update(http_server_t* server);
 

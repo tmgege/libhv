@@ -359,7 +359,7 @@ static void http_server_loop_once(void* userdata)
     http_server_loop_base(userdata, evtLoop);
 }
 
-int http_server_run(http_server_t* server, int wait) {
+int http_server_run(http_server_t* server, int isMainThreadEnabled, int isLoop) {
     // http_port
     if (server->port > 0) {
         server->listenfd[0] = Listen(server->port, server->host);
@@ -382,22 +382,29 @@ int http_server_run(http_server_t* server, int wait) {
 
     if (server->worker_processes) {
         // multi-processes
-        return master_workers_run(http_server_loop, server, server->worker_processes, server->worker_threads, wait);
+        return master_workers_run(http_server_loop, server, server->worker_processes, server->worker_threads, isMainThreadEnabled);
     }
     else {
         // multi-threads
         if (server->worker_threads == 0) server->worker_threads = 1;
-        for (int i = wait ? 1 : 0; i < server->worker_threads; ++i) {
-            hthread_t thrd = hthread_create((hthread_routine)http_server_loop, server);
-            privdata->threads.push_back(thrd);
+        for (int i = isMainThreadEnabled ? 1 : 0; i < server->worker_threads; ++i) {
+            if (isLoop) {
+                hthread_t thrd = hthread_create((hthread_routine)http_server_loop, server);
+                privdata->threads.push_back(thrd);
+            }
+            else {
+                hthread_t thrd = hthread_create((hthread_routine)http_server_loop_once, server);
+                privdata->threads.push_back(thrd);
+            }
         }
 
-        if (server->worker_threads <= 0 && !wait)
-        {
-            http_server_loop_once(server);
-        }
-        if (wait) {
-            http_server_loop(server);
+        if (isMainThreadEnabled) {
+            if (isLoop) {
+                http_server_loop(server);
+            }
+            else {
+                http_server_loop_once(server);
+            }
         }
         return 0;
     }

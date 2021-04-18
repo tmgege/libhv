@@ -7,6 +7,7 @@
 #include "http2def.h"
 #include "wsdef.h"
 
+#include "hevent.h"
 #include "EventLoop.h"
 using namespace hv;
 
@@ -310,10 +311,8 @@ static void on_accept(hio_t* io) {
     hevent_set_userdata(io, handler);
 }
 
-static void loop_thread(void* userdata) {
+static void http_server_loop_base(void* userdata, EventLoopPtr loop) {
     http_server_t* server = (http_server_t*)userdata;
-
-    EventLoopPtr loop(new EventLoop);
     hloop_t* hloop = loop->loop();
     // http
     if (server->listenfd[0] >= 0) {
@@ -347,6 +346,19 @@ static void loop_thread(void* userdata) {
     loop->run();
 }
 
+
+static void http_server_loop(void* userdata) {
+    EventLoopPtr evtLoop(new EventLoop);
+    http_server_loop_base(userdata, evtLoop);
+}
+
+static void http_server_loop_once(void* userdata)
+{
+    auto* loop = hloop_new(HLOOP_FLAG_RUN_ONCE);
+    EventLoopPtr evtLoop(new EventLoop(loop));
+    http_server_loop_base(userdata, evtLoop);
+}
+
 int http_server_run(http_server_t* server, int wait) {
     // http_port
     if (server->port > 0) {
@@ -370,19 +382,34 @@ int http_server_run(http_server_t* server, int wait) {
 
     if (server->worker_processes) {
         // multi-processes
-        return master_workers_run(loop_thread, server, server->worker_processes, server->worker_threads, wait);
+        return master_workers_run(http_server_loop, server, server->worker_processes, server->worker_threads, wait);
     }
     else {
         // multi-threads
         if (server->worker_threads == 0) server->worker_threads = 1;
         for (int i = wait ? 1 : 0; i < server->worker_threads; ++i) {
-            hthread_t thrd = hthread_create((hthread_routine)loop_thread, server);
+            hthread_t thrd = hthread_create((hthread_routine)http_server_loop, server);
             privdata->threads.push_back(thrd);
         }
+
+        if (server->worker_threads <= 0 && !wait)
+        {
+            http_server_loop_once(server);
+        }
         if (wait) {
-            loop_thread(server);
+            http_server_loop(server);
         }
         return 0;
+    }
+}
+
+void http_server_update(http_server_t* server)
+{
+    HttpServerPrivdata* privdata = (HttpServerPrivdata*)server->privdata;
+    for (auto& loop : privdata->loops) {
+        if (loop->status() == hv::Status::kStopped) {
+            loop->run();
+        }
     }
 }
 
@@ -417,6 +444,13 @@ int http_server_stop(http_server_t* server) {
     // stop all loops
     for (auto& loop : privdata->loops) {
         loop->stop();
+        auto* hloop1 = loop->loop();
+        if (hloop1 != nullptr)
+        {
+            if (!(hloop1->flags & HLOOP_FLAG_AUTO_FREE)) {
+                hloop_free(&hloop1);
+            }
+        }
     }
 
     // join all threads
